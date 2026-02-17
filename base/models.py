@@ -8,6 +8,7 @@ from django.contrib.auth.models import AbstractUser
 #aponta para o modelo correto de usuario
 from django.conf import settings
 
+#PRODUCTS
 
 class BaseProduct(models.Model):
     name = models.CharField(max_length=125)
@@ -32,23 +33,25 @@ class BaseCustomUser(AbstractUser):
     address = models.OneToOneField(Address, on_delete=models.CASCADE, null=True, blank=True)
     email = models.EmailField(max_length=254, unique=True)
 
-# ORDERS | PRODUCTS | STORAGE 
+# ORDERS 
 
 class Order(models.Model):
     client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     order_number = models.AutoField()
+    @property
     def get_total(self):   
-        #Calculates the total value of the order by summing the price of each product multiplied by its quantity in the order.
         #Soma o valor total do pedido multiplicando o preço de cada produto pela sua quantidade e somando todos os itens.
-        #Returns/Retorna:
-        #    Decimal: total value of the order / valor total do pedido
+        #Retorna:
+        #valor total do pedido
         return sum(item.product.price * item.quantity for item in self.items.all())
+    @property
     def get_products_and_quantities(self): 
     #Retorna uma lista de tuplas (produto, quantidade) deste pedido.
     #Exemplo de uso:
     #    for produto, quantidade in order.get_products_and_quantities():
     #        print(produto.name, quantidade)
         return [(item.product, item.quantity) for item in self.items.all()]
+    @property
     def get_total(self):
         return sum(item.product.price * item.quantity for item in self.items.all())
     STATUS_CHOICE = [
@@ -58,8 +61,20 @@ class Order(models.Model):
     ]
     status = models.CharField(max_length=20)
 
+#Define a quantidade de itens de cada produto
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
+#CART
 
+class Cart(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def total(self):
+        return sum(item['product'].price * item['quantity'] for item in self.items.values())
+    
+class CartItem(models.Model)
