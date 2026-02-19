@@ -16,6 +16,23 @@ class BaseProduct(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     description = models.CharField(max_length=300)
     slug = models.SlugField(unique=True) #(category)
+    stock = models.PositiveIntegerField(default=0)
+    image = models.ImageField(upload_to='products/', blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+#caso haja variação do produto - usar aqui
+
+class ProductVariation(models.Model):
+    product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE, related_name='variations')
+    name = models.CharField(max_length=50) # Ex: Tamanho, Cor
+    value = models.CharField(max_length=50) # Ex: P, Vermelho
+    price_override = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True) # Preço diferente se for variação
+    stock = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.product.name} - {self.name}: {self.value}"
 
 #USERS
 
@@ -27,23 +44,50 @@ class Address(models.Model):
     zip_code = models.CharField(max_length=20)
 
 class BaseCustomUser(AbstractUser):
+    USER_TYPE_CHOICES = (
+        ('client', 'Cliente'), #pode ver nada
+        ('manager', 'Gerente'), # Pode ver vendas, não apaga usuarios
+        ('employee', 'Funcionário'), # Pode ver pedidos, update status
+        ('admin', 'Administrador'), # Acesso total
+    )
+    user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='client')
+    
     name = models.CharField(max_length=125)
     phone = models.PhoneNumberField(blank=True, null=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     address = models.OneToOneField(Address, on_delete=models.CASCADE, null=True, blank=True)
     email = models.EmailField(max_length=254, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    def is_manager_or_admin(self):
+        return self.user_type in ['manager', 'admin'] or self.is_superuser
+    
+    def save(self, *args, **kwargs):
+        # Auto-set staff status based on role
+        if self.user_type in ['manager', 'employee', 'admin']:
+            self.is_staff = True
+        if self.user_type == 'admin':
+            self.is_superuser = True
+        super().save(*args, **kwargs)
+
 
 # ORDERS 
 
 class Order(models.Model):
-    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    order_number = models.AutoField()
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    
     @property
     def get_total(self):   
         #Soma o valor total do pedido multiplicando o preço de cada produto pela sua quantidade e somando todos os itens.
         #Retorna:
         #valor total do pedido
         return sum(item.product.price * item.quantity for item in self.items.all())
+
     @property
     def get_products_and_quantities(self): 
     #Retorna uma lista de tuplas (produto, quantidade) deste pedido.
@@ -51,15 +95,16 @@ class Order(models.Model):
     #    for produto, quantidade in order.get_products_and_quantities():
     #        print(produto.name, quantidade)
         return [(item.product, item.quantity) for item in self.items.all()]
-    @property
-    def get_total(self):
-        return sum(item.product.price * item.quantity for item in self.items.all())
+
     STATUS_CHOICE = [
         ('pending','Pendente'),
         ('preparing','Em preparo'),
-        ('ready', 'Pronto')
+        ('ready', 'Pronto'),
+        ('delivered', 'Entregue'),
+        ('canceled', 'Cancelado'),
     ]
-    status = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICE, default='pending')
+    payment_status = models.BooleanField(default=False)
 
 #Define a quantidade de itens de cada produto
 
@@ -67,18 +112,139 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
-    
+
 #CART
 
 class Cart(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
     @property
     def total(self):
-        return sum(item['product'].price * item['quantity'] for item in self.items.values())
+        return sum(item.product.price * item.quantity for item in self.items.all())
     
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
+
+# CRM 
+
+class CRMTag(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    color = models.CharField(max_length=7, default="#FFFFFF")
+    def __str__(self):
+        return self.name
+
+class CustomerCRM(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='crm_profile')
+    tags = models.ManyToManyField(CRMTag, blank=True)
+    internal_notes = models.TextField(blank=True, help_text="Anotações internas sobre o cliente (não visível para ele)")
+    lifetime_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    total_orders_count = models.PositiveIntegerField(default=0)
+    last_purchase_date = models.DateTimeField(null=True, blank=True)
+    
+    def update_metrics(self):
+        orders = self.user.order_set.filter(payment_status=True)
+        self.total_orders_count = orders.count()
+        self.lifetime_value = sum(order.get_total for order in orders)
+        if orders.exists():
+            self.last_purchase_date = orders.latest('created_at').created_at
+        self.save()
+
+    def __str__(self):
+        return f"CRM: {self.user.email}"
+
+class CRMInteraction(models.Model):
+    INTERACTION_TYPES = [
+        ('call', 'Ligação'),
+        ('email', 'E-mail'),
+        ('whatsapp', 'WhatsApp'),
+        ('support', 'Suporte/Ticket'),
+        ('meeting', 'Reunião Presencial'),
+        ('other', 'Outro'),
+    ]
+    customer = models.ForeignKey(CustomerCRM, on_delete=models.CASCADE, related_name='interactions')
+    agent = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='agent_interactions') # Quem atendeu
+    type = models.CharField(max_length=20, choices=INTERACTION_TYPES)
+    subject = models.CharField(max_length=150)
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.get_type_display()} - {self.subject} ({self.created_at.strftime('%d/%m/%Y')})"
+
+# ERP (Inventory & Finance)
+
+#fornecedor
+
+class Supplier(models.Model):
+    name = models.CharField(max_length=150)
+    contact_name = models.CharField(max_length=100, blank=True)
+    phone = models.PhoneNumberField(blank=True, null=True)
+    email = models.EmailField(blank=True)
+    notes = models.TextField(blank=True)
+    
+    def __str__(self):
+        return self.name
+
+#logs/registros
+
+class InventoryLog(models.Model):
+    MOVEMENT_TYPES = [
+        ('IN', 'Entrada'),
+        ('OUT', 'Saída'),
+        ('ADJUST', 'Ajuste de Auditoria'),
+    ]
+    
+    product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE, related_name='inventory_logs')
+    variation = models.ForeignKey(ProductVariation, on_delete=models.CASCADE, null=True, blank=True)
+    type = models.CharField(max_length=10, choices=MOVEMENT_TYPES)
+    quantity = models.PositiveIntegerField() # Sempre positivo, o tipo define se soma ou subtrai
+    reason = models.CharField(max_length=200) # Ex:Reposição de Estoque,Venda #123, Produto Danificado
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True) # Quem fez a movimentação
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def save(self, *args, **kwargs):
+    # Identifica quem deve ser atualizado (Produto Simples ou Variação?)
+        super().save(*args, **kwargs)
+        if self.variation:
+            target = self.variation
+        else:
+            target = self.product
+            
+        if self.type == 'IN':
+            target.stock += self.quantity
+        elif self.type == 'OUT':
+            target.stock = max(0, target.stock - self.quantity) # Evita negativo
+        elif self.type == 'ADJUST':
+            target.stock = self.quantity 
+            pass
+        target.save()
+    def __str__(self):
+        return f"{self.type} - {self.product.name} ({self.quantity})"
+    
+class FinancialTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('INCOME', 'Receita'),
+        ('EXPENSE', 'Despesa'),
+        ]
+    type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    description = models.CharField(max_length=200) # Ex: "Venda Pedido #45", "Conta de Luz", "Pagamento Fornecedor X"
+    category = models.CharField(max_length=50, blank=True) # Ex: "Vendas", "Operacional", "Pessoal"
+    date = models.DateField(auto_now_add=True)
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
+    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.get_type_display()}: R$ {self.amount} - {self.description}"
+
+
+
+
+
+
+
+
+
+
+

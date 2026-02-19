@@ -3,3 +3,6 @@ django-6.0.2
 sqlparse-0.5.5 
 tzdata-2025.3
 pylance==2.0.1
+
+O fluxo do Django REST Framework (DRF) funciona assim:
+PostgreSQL <-> Model <-> Serializer <-> ViewSet <-> Router <-> Cliente (Front-end)
