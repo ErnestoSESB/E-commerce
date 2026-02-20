@@ -14,3 +14,11 @@ Permissões (Quem pode fazer o quê?):
 Seus ViewSets ainda não têm classes de permissão definidas (permission_classes).
 Risco Atual: Qualquer pessoa que acesse a URL /api/products/ pode DELETAR ou CRIAR produtos.
 Correção Urgente: Definir permissões globais no settings.py ou em cada ViewSet (IsAuthenticated, IsAdminUser).
+
+Passo 1: Instalar e Configurar o Bleach
+Primeiro, verifique se tem bleach instalado. Se não, adicione ao requirements.txt.
+
+Passo 2: Implementar o Sanitizer
+Vou criar um arquivo base/utils.py com um Mixin de segurança e aplicar nos seus serializers.
+
+Quer que eu implemente essa sanitização automática agora?

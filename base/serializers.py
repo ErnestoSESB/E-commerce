@@ -4,6 +4,12 @@ from .models import *
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseProduct
+        fields = ['id', 'name', 'price', 'description', 'slug', 'image']
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BaseProduct
         fields = '__all__'
 
 
@@ -33,16 +39,12 @@ class CustomUserSerializer(serializers.ModelSerializer):
     address = AddressSerializer(read_only=True) 
     class Meta:
         model = BaseCustomUser
-        fields = '__all__'
+        fields = ['username', 'email', 'name', 'phone', 'address', 'password']
+        
         extra_kwargs = {
-            'password': {'write_only': True},
-            'is_superuser': {'read_only': True},
-            'is_staff': {'read_only': True},
-            'is_active': {'read_only': True},
-            'last_login': {'read_only': True},
-            'date_joined': {'read_only': True},
-            'groups': {'read_only': True},
-            'user_permissions': {'read_only': True},
+            'password': {'write_only': True}, 
+            'username': {'read_only': True},  
+            'email': {'read_only': True},     # colocar autenticação de dois fatores
         }
 
     def create(self, validated_data):
@@ -76,6 +78,24 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'cart', 'product', 'product_name', 'product_price', 'quantity']
+        read_only_fields = ['cart'] # O carrinho é injetado pela view, o usuário não escolhe
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("A quantidade deve ser maior que zero.")
+        return value
+
+    def validate(self, data):
+        # Validação cruzada: Checar se a quantidade pedida existe no estoque do produto
+        product = data.get('product')
+        quantity = data.get('quantity')
+        
+        # Se for atualização (instance existe), somamos ou verificamos o novo valor? 
+        # Aqui assumimos validação simples de criação/atualização absoluta
+        if product and quantity:
+            if product.stock is not None and quantity > product.stock:
+                 raise serializers.ValidationError(f"Estoque insuficiente. Restam apenas {product.stock} unidades.")
+        return data
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)

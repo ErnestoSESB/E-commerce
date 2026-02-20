@@ -14,13 +14,10 @@ class BaseProduct(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=125)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    
-  
     description = models.CharField(max_length=300, null=True, blank=True)
     slug = models.SlugField(unique=True, null=True, blank=True) 
     stock = models.PositiveIntegerField(default=0, null=True, blank=True)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
-    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -57,10 +54,10 @@ class Address(models.Model):
 
 class BaseCustomUser(AbstractUser):
     USER_TYPE_CHOICES = (
-        ('client', 'Cliente'), #pode ver nada
-        ('manager', 'Gerente'), # Pode ver vendas, não apaga usuarios
-        ('employee', 'Funcionário'), # Pode ver pedidos, e mudar seu status
-        ('admin', 'Administrador'), # Acesso total
+        ('client', 'Cliente'), #ver
+        ('manager', 'Gerente'), # ver e ver vendas
+        ('employee', 'Funcionário'), #ver pedidos, e mudar status
+        ('admin', 'Administrador'), # All
     )
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='client')
     
@@ -126,6 +123,7 @@ class OrderItem(models.Model):
 
 class Cart(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='cart') 
     created_at = models.DateTimeField(auto_now_add=True)
     @property
     def total(self):
