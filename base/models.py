@@ -11,24 +11,36 @@ from django.conf import settings
 #PRODUCTS
 
 class BaseProduct(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=125)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    description = models.CharField(max_length=300)
-    slug = models.SlugField(unique=True) #(category)
-    stock = models.PositiveIntegerField(default=0)
+    
+  
+    description = models.CharField(max_length=300, null=True, blank=True)
+    slug = models.SlugField(unique=True, null=True, blank=True) 
+    stock = models.PositiveIntegerField(default=0, null=True, blank=True)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        
+        if not self.slug and self.name:
+             
+             from django.utils.text import slugify
+             base_slug = slugify(self.name)
+             self.slug = f"{base_slug}-{str(self.id)[:8]}" if self.id else base_slug
+        super().save(*args, **kwargs)
+ 
 #caso haja variação do produto - usar aqui
 
 class ProductVariation(models.Model):
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE, related_name='variations')
-    name = models.CharField(max_length=50) # Ex: Tamanho, Cor
-    value = models.CharField(max_length=50) # Ex: P, Vermelho
-    price_override = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True) # Preço diferente se for variação
+    name = models.CharField(max_length=50) 
+    value = models.CharField(max_length=50) 
+    price_override = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stock = models.PositiveIntegerField(default=0)
 
     def __str__(self):
@@ -47,7 +59,7 @@ class BaseCustomUser(AbstractUser):
     USER_TYPE_CHOICES = (
         ('client', 'Cliente'), #pode ver nada
         ('manager', 'Gerente'), # Pode ver vendas, não apaga usuarios
-        ('employee', 'Funcionário'), # Pode ver pedidos, update status
+        ('employee', 'Funcionário'), # Pode ver pedidos, e mudar seu status
         ('admin', 'Administrador'), # Acesso total
     )
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='client')
@@ -64,7 +76,7 @@ class BaseCustomUser(AbstractUser):
         return self.user_type in ['manager', 'admin'] or self.is_superuser
     
     def save(self, *args, **kwargs):
-        # Auto-set staff status based on role
+
         if self.user_type in ['manager', 'employee', 'admin']:
             self.is_staff = True
         if self.user_type == 'admin':
@@ -90,10 +102,7 @@ class Order(models.Model):
 
     @property
     def get_products_and_quantities(self): 
-    #Retorna uma lista de tuplas (produto, quantidade) deste pedido.
-    #Exemplo de uso:
-    #    for produto, quantidade in order.get_products_and_quantities():
-    #        print(produto.name, quantidade)
+        #retorna tuplas em lista
         return [(item.product, item.quantity) for item in self.items.all()]
 
     STATUS_CHOICE = [
@@ -123,6 +132,7 @@ class Cart(models.Model):
         return sum(item.product.price * item.quantity for item in self.items.all())
     
 class CartItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False) 
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
@@ -172,7 +182,7 @@ class CRMInteraction(models.Model):
     def __str__(self):
         return f"{self.get_type_display()} - {self.subject} ({self.created_at.strftime('%d/%m/%Y')})"
 
-# ERP (Inventory & Finance)
+# ERP
 
 #fornecedor
 
@@ -186,7 +196,7 @@ class Supplier(models.Model):
     def __str__(self):
         return self.name
 
-#logs/registros
+#logs
 
 class InventoryLog(models.Model):
     MOVEMENT_TYPES = [
@@ -198,13 +208,13 @@ class InventoryLog(models.Model):
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE, related_name='inventory_logs')
     variation = models.ForeignKey(ProductVariation, on_delete=models.CASCADE, null=True, blank=True)
     type = models.CharField(max_length=10, choices=MOVEMENT_TYPES)
-    quantity = models.PositiveIntegerField() # Sempre positivo, o tipo define se soma ou subtrai
-    reason = models.CharField(max_length=200) # Ex:Reposição de Estoque,Venda #123, Produto Danificado
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True) # Quem fez a movimentação
+    quantity = models.PositiveIntegerField() 
+    reason = models.CharField(max_length=200) 
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True) 
     created_at = models.DateTimeField(auto_now_add=True)
     
     def save(self, *args, **kwargs):
-    # Identifica quem deve ser atualizado (Produto Simples ou Variação?)
+    #identifica qual tipo de produto deve ser modificado
         super().save(*args, **kwargs)
         if self.variation:
             target = self.variation
@@ -214,7 +224,7 @@ class InventoryLog(models.Model):
         if self.type == 'IN':
             target.stock += self.quantity
         elif self.type == 'OUT':
-            target.stock = max(0, target.stock - self.quantity) # Evita negativo
+            target.stock = max(0, target.stock - self.quantity)
         elif self.type == 'ADJUST':
             target.stock = self.quantity 
             pass
@@ -229,8 +239,8 @@ class FinancialTransaction(models.Model):
         ]
     type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    description = models.CharField(max_length=200) # Ex: "Venda Pedido #45", "Conta de Luz", "Pagamento Fornecedor X"
-    category = models.CharField(max_length=50, blank=True) # Ex: "Vendas", "Operacional", "Pessoal"
+    description = models.CharField(max_length=200) 
+    category = models.CharField(max_length=50, blank=True) 
     date = models.DateField(auto_now_add=True)
     order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)

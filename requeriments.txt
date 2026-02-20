@@ -3,6 +3,14 @@ django-6.0.2
 sqlparse-0.5.5 
 tzdata-2025.3
 pylance==2.0.1
+djangorestframework-3.16.1
+markdown-3.10.2
 
 O fluxo do Django REST Framework (DRF) funciona assim:
 PostgreSQL <-> Model <-> Serializer <-> ViewSet <-> Router <-> Cliente (Front-end)
+
+Permissões (Quem pode fazer o quê?):
+
+Seus ViewSets ainda não têm classes de permissão definidas (permission_classes).
+Risco Atual: Qualquer pessoa que acesse a URL /api/products/ pode DELETAR ou CRIAR produtos.
+Correção Urgente: Definir permissões globais no settings.py ou em cada ViewSet (IsAuthenticated, IsAdminUser).
