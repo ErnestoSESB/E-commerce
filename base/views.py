@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from .utils import SanitizedCharField
 from .models import (
     BaseProduct, ProductVariation, BaseCustomUser, Address,
     Order, OrderItem, Cart, CartItem, CRMTag, CustomerCRM,
@@ -14,12 +15,18 @@ from .serializers import (
     CRMTagSerializer, CustomerCRMSerializer, CRMInteractionSerializer,
     SupplierSerializer, InventoryLogSerializer, FinancialTransactionSerializer
 )
+
 #permissões
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
         return request.user and request.user.is_staff
+
+class IsStrictlyAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        # Nega se não estiver autenticado e se não for Staff
+        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -103,7 +110,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
     serializer_class = OrderItemSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-# --- CARRINHO ---
+# CART
 class CartViewSet(viewsets.ModelViewSet): 
     serializer_class = CartSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -153,7 +160,7 @@ class CRMInteractionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(agent=self.request.user)
 
-# --- ERP (APENAS ADMIN/STAFF) ---
+# ERP
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
