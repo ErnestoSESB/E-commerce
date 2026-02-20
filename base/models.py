@@ -91,10 +91,7 @@ class Order(models.Model):
 
     
     @property
-    def get_total(self):   
-        #Soma o valor total do pedido multiplicando o preço de cada produto pela sua quantidade e somando todos os itens.
-        #Retorna:
-        #valor total do pedido
+    def get_total(self):
         return sum(item.product.price * item.quantity for item in self.items.all())
 
     @property

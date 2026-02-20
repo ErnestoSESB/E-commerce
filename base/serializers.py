@@ -1,19 +1,29 @@
 from rest_framework import serializers
-from .models import *
+from .utils import SanitizedCharField, RichTextField
+from .models import (
+    BaseProduct, ProductVariation, Address, BaseCustomUser, Order, 
+    OrderItem, CartItem, Cart, CRMTag, CRMInteraction, CustomerCRM, 
+    Supplier, InventoryLog, FinancialTransaction
+)
 
 class ProductSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField(max_length=125)
+    description = RichTextField(required=False, allow_blank=True)
     class Meta:
         model = BaseProduct
         fields = ['id', 'name', 'price', 'description', 'slug', 'image']
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField(max_length=125)
+    description = RichTextField(required=False, allow_blank=True)
     class Meta:
         model = BaseProduct
         fields = '__all__'
 
 
 class SimpleProductSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField(max_length=125)
     class Meta:
         model = BaseProduct
         fields = ['id', 'name', 'price']
@@ -25,18 +35,27 @@ class SimpleProductSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class VariationProductSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField()
+    value = SanitizedCharField()
     class Meta:
         model = ProductVariation
         fields = '__all__'
 
 # Users
 class AddressSerializer(serializers.ModelSerializer):
+    street = SanitizedCharField()
+    city = SanitizedCharField()
+    state = SanitizedCharField()
+    zip_code = SanitizedCharField()
+    
     class Meta:
         model = Address
         fields = '__all__'
 
 class CustomUserSerializer(serializers.ModelSerializer):
     address = AddressSerializer(read_only=True) 
+    name = SanitizedCharField()
+    
     class Meta:
         model = BaseCustomUser
         fields = ['username', 'email', 'name', 'phone', 'address', 'password']
@@ -44,7 +63,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'password': {'write_only': True}, 
             'username': {'read_only': True},  
-            'email': {'read_only': True},     # colocar autenticação de dois fatores
+            'email': {'read_only': True},     
         }
 
     def create(self, validated_data):
@@ -78,7 +97,7 @@ class CartItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ['id', 'cart', 'product', 'product_name', 'product_price', 'quantity']
-        read_only_fields = ['cart'] # O carrinho é injetado pela view, o usuário não escolhe
+        read_only_fields = ['cart']
 
     def validate_quantity(self, value):
         if value <= 0:
@@ -86,12 +105,9 @@ class CartItemSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        # Validação cruzada: Checar se a quantidade pedida existe no estoque do produto
         product = data.get('product')
         quantity = data.get('quantity')
         
-        # Se for atualização (instance existe), somamos ou verificamos o novo valor? 
-        # Aqui assumimos validação simples de criação/atualização absoluta
         if product and quantity:
             if product.stock is not None and quantity > product.stock:
                  raise serializers.ValidationError(f"Estoque insuficiente. Restam apenas {product.stock} unidades.")
@@ -107,12 +123,17 @@ class CartSerializer(serializers.ModelSerializer):
 
 # CRM
 class CRMTagSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField()
+    color = SanitizedCharField()
+
     class Meta:
         model = CRMTag
         fields = '__all__'
 
 class CRMInteractionSerializer(serializers.ModelSerializer):
     agent_name = serializers.ReadOnlyField(source='agent.username')
+    subject = SanitizedCharField()
+    description = SanitizedCharField()
 
     class Meta:
         model = CRMInteraction
@@ -121,6 +142,7 @@ class CRMInteractionSerializer(serializers.ModelSerializer):
 class CustomerCRMSerializer(serializers.ModelSerializer):
     user_email = serializers.ReadOnlyField(source='user.email')
     user_name = serializers.ReadOnlyField(source='user.first_name')
+    internal_notes = SanitizedCharField(required=False, allow_blank=True)
     tags = CRMTagSerializer(many=True, read_only=True)
     interactions = CRMInteractionSerializer(many=True, read_only=True)
 
@@ -130,6 +152,9 @@ class CustomerCRMSerializer(serializers.ModelSerializer):
 
 # ERP
 class SupplierSerializer(serializers.ModelSerializer):
+    name = SanitizedCharField()
+    contact_name = SanitizedCharField(allow_blank=True, required=False)
+    notes = SanitizedCharField(allow_blank=True, required=False)
     class Meta:
         model = Supplier
         fields = '__all__'
@@ -137,12 +162,14 @@ class SupplierSerializer(serializers.ModelSerializer):
 class InventoryLogSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     user_name = serializers.ReadOnlyField(source='user.username')
-
+    reason = SanitizedCharField()
     class Meta:
         model = InventoryLog
         fields = '__all__'
 
 class FinancialTransactionSerializer(serializers.ModelSerializer):
+    description = SanitizedCharField()
+    category = SanitizedCharField(allow_blank=True, required=False)   
     class Meta:
         model = FinancialTransaction
         fields = '__all__'
