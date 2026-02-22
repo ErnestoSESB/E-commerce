@@ -4,6 +4,7 @@ from django.db import models
 import uuid
 
 #DOCUMENTATION ABOUT USER'S
+
 from django.contrib.auth.models import AbstractUser
 #aponta para o modelo correto de usuario
 from django.conf import settings
@@ -21,9 +22,7 @@ class BaseProduct(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     def save(self, *args, **kwargs):
-        
         if not self.slug and self.name:
              
              from django.utils.text import slugify
@@ -47,7 +46,7 @@ class ProductVariation(models.Model):
 
 class Address(models.Model):
     street = models.CharField(max_length=255)
-    number = models.PositiveIntegerField(max_length=10)
+    number = models.PositiveIntegerField
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
     zip_code = models.CharField(max_length=20)
@@ -60,9 +59,8 @@ class BaseCustomUser(AbstractUser):
         ('admin', 'Administrador'), # All
     )
     user_type = models.CharField(max_length=20, choices=USER_TYPE_CHOICES, default='client')
-    
     name = models.CharField(max_length=125)
-    phone = models.PhoneNumberField(blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     address = models.OneToOneField(Address, on_delete=models.CASCADE, null=True, blank=True)
     email = models.EmailField(max_length=254, unique=True)
@@ -184,7 +182,7 @@ class CRMInteraction(models.Model):
 class Supplier(models.Model):
     name = models.CharField(max_length=150)
     contact_name = models.CharField(max_length=100, blank=True)
-    phone = models.PhoneNumberField(blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
     
@@ -209,7 +207,6 @@ class InventoryLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def save(self, *args, **kwargs):
-    #identifica qual tipo de produto deve ser modificado
         super().save(*args, **kwargs)
         if self.variation:
             target = self.variation
