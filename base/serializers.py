@@ -27,7 +27,6 @@ class SimpleProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseProduct
         fields = ['id', 'name', 'price']
-        
     def create(self, validated_data):
         validated_data['stock'] = 9999
         validated_data['description'] = "Produto Simples"
@@ -116,10 +115,10 @@ class CartItemSerializer(serializers.ModelSerializer):
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
     total = serializers.ReadOnlyField() 
-
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
     class Meta:
         model = Cart
-        fields = ['id', 'created_at', 'items', 'total']
+        fields = ['id', 'created_at', 'items', 'total', 'user']
 
 # CRM
 class CRMTagSerializer(serializers.ModelSerializer):
