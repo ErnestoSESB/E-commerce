@@ -1,7 +1,6 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from .utils import SanitizedCharField
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
+from .filters import ProductFilter, OrderFilter, InventoryLogFilter, FinancialTransactionFilter, UserFilter
 from .models import (
     BaseProduct, ProductVariation, BaseCustomUser, Address,
     Order, OrderItem, Cart, CartItem, CRMTag, CustomerCRM,
@@ -40,16 +39,14 @@ class IsOwnerOrAdmin(permissions.BasePermission):
 
 # Products
 class BaseProductViewSet(viewsets.ModelViewSet):
-    queryset = BaseProduct.objects.filter(is_active=True) 
+    queryset = BaseProduct.objects.filter(is_active=True).order_by('created_at')
     serializer_class = ProductSerializer
     permission_classes = [IsAdminOrReadOnly]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        search = self.request.query_params.get('search', None)
-        if search:
-            queryset = queryset.filter(name__icontains=search)
-        return queryset
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = ProductFilter
+    search_fields = ['name', 'description']
+    ordering_fields = ['price', 'created_at', 'name']
+    ordering = ['created_at']
 
 class ProductVariationViewSet(viewsets.ModelViewSet):
     queryset = ProductVariation.objects.all()
@@ -60,11 +57,15 @@ class ProductVariationViewSet(viewsets.ModelViewSet):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = BaseCustomUser.objects.all()
     serializer_class = CustomUserSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = UserFilter
+    search_fields = ['name', 'email']
+    ordering_fields = ['date_joined', 'name']
 
     def get_permissions(self):
         if self.action == 'create': 
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated, IsOwnerOrAdmin()]
+        return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
 
     def get_queryset(self):
         user = self.request.user
@@ -95,6 +96,11 @@ class AddressViewSet(viewsets.ModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = OrderFilter
+    search_fields = ['id', 'status']
+    ordering_fields = ['created_at', 'status']
+    ordering = ['created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -114,6 +120,8 @@ class OrderItemViewSet(viewsets.ModelViewSet):
 class CartViewSet(viewsets.ModelViewSet): 
     serializer_class = CartSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['created_at', 'id']
+    ordering = ['created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -170,9 +178,16 @@ class InventoryLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = InventoryLog.objects.all()
     serializer_class = InventoryLogSerializer
     permission_classes = [permissions.IsAdminUser]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = InventoryLogFilter
+    ordering_fields = ['created_at', 'type']
 
 class FinancialTransactionViewSet(viewsets.ModelViewSet):
-    queryset = FinancialTransaction.objects.all()
+    queryset = FinancialTransaction.objects.all().order_by('date')
     serializer_class = FinancialTransactionSerializer
     permission_classes = [permissions.IsAdminUser]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = FinancialTransactionFilter
+    ordering_fields = ['date', 'amount']
+    ordering = ['date']
 
