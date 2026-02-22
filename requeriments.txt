@@ -1,24 +1,88 @@
-asgiref-3.11.1
-django-6.0.2 
-sqlparse-0.5.5 
-tzdata-2025.3
+annotated-types==0.7.0
+asgiref==3.11.1
+Django==6.0.2
+django-filter==25.2
+djangorestframework==3.16.1
+lance-namespace==0.4.5
+lance-namespace-urllib3-client==0.4.5
+Markdown==3.10.2
+nh3==0.3.3
+numpy==2.4.2
+pyarrow==23.0.1
+pydantic==2.12.5
+pydantic_core==2.41.5
 pylance==2.0.1
-djangorestframework-3.16.1
-markdown-3.10.2
+python-dateutil==2.9.0.post0
+six==1.17.0
+sqlparse==0.5.5
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2025.3
+urllib3==2.6.3
+pillow==12.1.1
+
+Serialização de dados - Transformar dados em JSON
+Segurança anti XSS
+NH3 lib py feita em cobol - rapida e facil de usar - segurança dos dados
+
+GERAR DASHBOARDS PARA O CRM E ERP - fazer ao menos 3 variações - colunas, pizza, piramide
 
 O fluxo do Django REST Framework (DRF) funciona assim:
 PostgreSQL <-> Model <-> Serializer <-> ViewSet <-> Router <-> Cliente (Front-end)
 
-Permissões (Quem pode fazer o quê?):
+Falta Técnica Mínima (Para Funcionar e não quebrar em Produção):
 
-Seus ViewSets ainda não têm classes de permissão definidas (permission_classes).
-Risco Atual: Qualquer pessoa que acesse a URL /api/products/ pode DELETAR ou CRIAR produtos.
-Correção Urgente: Definir permissões globais no settings.py ou em cada ViewSet (IsAuthenticated, IsAdminUser).
+PROBLEMAS
 
-Passo 1: Instalar e Configurar o Bleach
-Primeiro, verifique se tem bleach instalado. Se não, adicione ao requirements.txt.
+Onde: ProductViewSet, OrderViewSet.
+Problema: Atualmente só tem um .filter(search). E se quiser filtrar por preço (price__gte=100), categoria, ou status do pedido (status='pending', created_at__year=2024)?
+Solução: Configurar django-filter e SearchFilter, OrderingFilter.
+Testes Automatizados (Coverage):
 
-Passo 2: Implementar o Sanitizer
-Vou criar um arquivo base/utils.py com um Mixin de segurança e aplicar nos seus serializers.
+Onde: tests.py.
+Problema: Revisamos visualmente, mas não testamos na prática ("Será que o carrinho realmente bloqueia o vizinho?"). Se mudar uma vírgula amanhã, quebra tudo sem aviso.
+Solução: Escrever testes unitários que tentam burlar a segurança (test_user_cannot_access_others_cart, test_anonymous_cannot_create_transaction).
+Falta Funcional (Features Esperadas mas ausentes):
+Autenticação JWT (JSON Web Tokens):
 
-Quer que eu implemente essa sanitização automática agora?
+Onde: settings.py e rotas de Login.
+Problema: Atualmente o Django usa Session Auth ou Basic Auth. Apps modernos (React/Mobile) precisam de Tokens JWT (access e refresh).
+Solução: Instalar djangorestframework_simplejwt.
+Confirmação/Recuperação de Senha:
+
+Onde: Rotas de User.
+Problema: Se o usuário esquecer a senha, ele perde a conta pra sempre? Ou manda email pro suporte?
+Solução: Implementar endpoints de reset_password enviando link por email (e configurar SMTP).
+Admin Panel Customizado:
+
+Onde: admin.py.
+Problema: O Django Admin padrão é funcional, mas feio/cru para um gerente de loja operar ("Qual botão eu aperto?").
+Solução: Personalizar list_display, search_fields e inlines (Pedido com seus Itens dentro) para facilitar a vida da operação.
+Falta de Segurança Extra (Opcional, mas Recomendado "Paranóico"):
+Rate Limiting (Limitação de Taxa):
+
+Onde: settings.py (DRF Throttling).
+Problema: Alguém pode fazer POST /login/ 1000 vezes por segundo (Brute Force)? Ou consultar a lista de produtos infinitamente (Scraping)?
+Solução: Limitar: AnonRateThrottle (100/dia), UserRateThrottle (1000/dia).
+Sanitização de Input (HTML):
+
+###
+
+1. O Método update_metrics no CustomerCRM (Forte Acoplamento)
+No seu models.py, o modelo CustomerCRM tem este método:
+O Problema: O módulo de CRM está dependendo diretamente do módulo de Pedidos (Order). Se alguém usar o seu boilerplate para fazer um site institucional (que tem CRM, mas não tem carrinho/pedidos), esse código vai quebrar ou ficar obsoleto.
+A Solução Ideal: O CRM não deve buscar os pedidos. O módulo de Pedidos (quando existir e uma compra for finalizada) é que deve emitir um "sinal" (usando o django.dispatch.Signal) dizendo "Ei, uma compra foi feita!". O CRM escuta esse sinal e atualiza suas métricas. Assim, se o módulo de pedidos for removido, o CRM continua funcionando perfeitamente.
+
+2. FinancialTransaction dependendo de Order e Supplier
+O Problema: O módulo financeiro está amarrado ao módulo de E-commerce (Order) e ao módulo de ERP (Supplier). Se o boilerplate for usado para um app de controle financeiro pessoal, Order e Supplier não farão sentido.
+A Solução Ideal: Em arquiteturas whitelabel/modulares, costuma-se usar GenericForeignKey (do django.contrib.contenttypes) para relacionamentos opcionais entre módulos distintos. Assim, uma transação financeira pode estar ligada a qualquer coisa (um Pedido, uma Assinatura, um Fornecedor, um Funcionário), sem precisar importar esses modelos diretamente.
+
+3. Segurança do Address na View
+No views.py, o AddressViewSet faz o seguinte:
+O Problema: A View de Endereço está manipulando diretamente o objeto User. Embora um usuário tenha um endereço, a responsabilidade de atualizar o usuário não deveria estar na View do endereço.
+A Solução Ideal: O modelo Address deveria ter uma ForeignKey para o User (um usuário pode ter vários endereços: cobrança, entrega, etc.), ou, se for estritamente 1 para 1, a lógica de substituição deveria estar em um Signal ou no método save() do próprio modelo, mantendo a View limpa.
+
+Resumo
+A sua base está muito boa e a segurança dos filtros que fizemos hoje respeita totalmente essa regra de independência.
+
+Para garantir que o seu boilerplate seja verdadeiramente modular no futuro, a principal recomendação é começar a usar Django Signals para a comunicação entre módulos diferentes (ex: E-commerce avisando o CRM e o Financeiro que uma venda ocorreu) e Generic Foreign Keys para relacionamentos que cruzam as fronteiras dos módulos.
