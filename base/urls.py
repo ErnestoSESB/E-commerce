@@ -6,8 +6,9 @@ from .views import (
     OrderViewSet, OrderItemViewSet,
     CartViewSet, CartItemViewSet,
     CRMTagViewSet, CustomerCRMViewSet, CRMInteractionViewSet,
-    SupplierViewSet, InventoryLogViewSet, FinancialTransactionViewSet
+    SupplierViewSet, InventoryLogViewSet, FinancialTransactionViewSet,
 )
+from .tests import ( ProtectedHelloView)
 router = DefaultRouter()
 
 # Public and Mist
@@ -34,4 +35,5 @@ router.register(r'financial-transactions', FinancialTransactionViewSet, basename
 urlpatterns = [
     # Inclui as rotas da api como: /api/products/
     path('', include(router.urls)),
+    path('hello/', ProtectedHelloView.as_view(), name='protected-hello'),
 ]

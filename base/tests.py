@@ -36,6 +36,22 @@ class SecurityTests(APITestCase):
         cart_owner_id = response.data['results'][0]['user']
         self.assertEqual(str(cart_owner_id), str(self.client_user.id))
 
+        def test_user_cannot_access_others_cart(self):
+            Cart.objects.create(user=self.client_user)
+            Cart.objects.create(user=self.other_client)
+            self.client.force_authenticate(user=self.client_user)
+            url = reverse('cart-detail', args=[Cart.objects.get(user=self.other_client).id])
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertIn('Acesso negado', str(response.data))
+
+        def test_anonymous_cannot_create_transaction(self):
+            url = reverse('financial-transaction-list')
+            data = {"amount": 100, "type": "purchase"}
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+            self.assertIn('Authentication credentials were not provided', str(response.data))
+
     def test_normal_user_cannot_access_financial_transactions(self):
         self.client.force_authenticate(user=self.client_user)
         url = reverse('financial-transaction-list')   
@@ -47,3 +63,13 @@ class SecurityTests(APITestCase):
         url = reverse('financial-transaction-list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+class ProtectedHelloView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"message": f"Olá, {request.user.username}! Você está autenticado."})
