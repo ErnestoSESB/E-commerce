@@ -1,4 +1,11 @@
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, permissions, filters, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
+from datetime import timedelta
+from .utils import send_otp_email, send_password_reset_email
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import ProductFilter, OrderFilter, InventoryLogFilter, FinancialTransactionFilter, UserFilter
 from .models import (
@@ -12,8 +19,90 @@ from .serializers import (
     OrderSerializer, OrderItemSerializer,
     CartSerializer, CartItemSerializer,
     CRMTagSerializer, CustomerCRMSerializer, CRMInteractionSerializer,
-    SupplierSerializer, InventoryLogSerializer, FinancialTransactionSerializer
+    SupplierSerializer, InventoryLogSerializer, FinancialTransactionSerializer,
+    CustomTokenObtainPairSerializer
 )
+#AUTENTICAÇÃO DE DOIS FATORES
+
+#verifica cria o token e verifica se o usuario tem
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)  
+        if response.status_code == 200:
+            user = BaseCustomUser.objects.get(email=request.data.get('email'))
+            if hasattr(user, 'security_profile') and user.security_profile.is_2fa_enabled:
+                send_otp_email(user)
+                return Response({
+                    '2fa_required': True,
+                    'email': user.email,
+                    'message': 'Um código de verificação foi enviado para o seu email.'
+                }, status=status.HTTP_200_OK)
+        return response
+    
+#valida o codigo do token
+class VerifyOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        email = request.data.get('email')
+        otp_code = request.data.get('otp_code')
+        if not email or not otp_code:
+            return Response({'error': 'Email e código OTP são obrigatórios.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = BaseCustomUser.objects.get(email=email)
+        except BaseCustomUser.DoesNotExist:
+            return Response({'error': 'Usuário não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        profile = user.security_profile
+        if not profile.otp_code or profile.otp_code != otp_code:
+            return Response({'error': 'Código inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if profile.otp_created_at and timezone.now() > profile.otp_created_at + timedelta(minutes=10):
+            return Response({'error': 'Código expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.otp_code = None
+        profile.otp_created_at = None
+        profile.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+
+#recuperar senha
+class RequestPasswordResetView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = BaseCustomUser.objects.get(email=email)
+            send_password_reset_email(user)
+        except BaseCustomUser.DoesNotExist:
+            pass
+        return Response({'message': 'Se o email existir em nossa base, um link de recuperação será enviado.'}, status=status.HTTP_200_OK)
+
+#mudar senha
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        if not token or not new_password:
+            return Response({'error': 'Token e nova senha são obrigatórios.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = BaseCustomUser.objects.get(security_profile__reset_password_token=token)
+        except BaseCustomUser.DoesNotExist:
+            return Response({'error': 'Token inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        profile = user.security_profile
+        if profile.reset_password_expires and timezone.now() > profile.reset_password_expires:
+            return Response({'error': 'Token expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
+        profile.reset_password_token = None
+        profile.reset_password_expires = None
+        profile.save()
+        user.save()
+        return Response({'message': 'Senha redefinida com sucesso.'}, status=status.HTTP_200_OK)
 
 #permissões
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -82,7 +171,6 @@ class AddressViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Address.objects.all()
         return Address.objects.filter(basecustomuser=user)
-
     def perform_create(self, serializer):
         user = self.request.user
         if user.address:
