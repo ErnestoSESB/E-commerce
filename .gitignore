@@ -222,5 +222,5 @@ env
 .env
 .core
 
-testes.txt
-note.txt
+docs
+/docs

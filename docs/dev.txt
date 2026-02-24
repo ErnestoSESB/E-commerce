@@ -3,6 +3,8 @@ Serialização de dados - Transformar dados em JSON
 Segurança anti XSS
 NH3 lib py feita em cobol - rapida e facil de usar - segurança dos dados
 
+Separação de Responsabilidades (Separation of Concerns). - diferentes modelos para diferentes funções dentro um mesmo nucleo, ex: usuario e usuariosecurity
+
 GERAR DASHBOARDS PARA O CRM E ERP - fazer ao menos 3 variações - colunas, pizza, piramide
 
 O fluxo do Django REST Framework (DRF) funciona assim:
@@ -11,13 +13,6 @@ PostgreSQL <-> Model <-> Serializer <-> ViewSet <-> Router <-> Cliente (Front-en
 Falta Técnica Mínima (Para Funcionar e não quebrar em Produção):
 
 PROBLEMAS
-
-
-Onde: tests.py.
-Problema: Revisamos visualmente, mas não testamos na prática ("Será que o carrinho realmente bloqueia o vizinho?"). Se mudar uma vírgula amanhã, quebra tudo sem aviso.
-Solução: Escrever testes unitários que tentam burlar a segurança (test_user_cannot_access_others_cart, test_anonymous_cannot_create_transaction).
-Falta Funcional (Features Esperadas mas ausentes):
-Autenticação JWT (JSON Web Tokens):
 
 Onde: settings.py e rotas de Login.
 Problema: Atualmente o Django usa Session Auth ou Basic Auth. Apps modernos (React/Mobile) precisam de Tokens JWT (access e refresh).
@@ -60,3 +55,14 @@ Resumo
 A sua base está muito boa e a segurança dos filtros que fizemos hoje respeita totalmente essa regra de independência.
 
 Para garantir que o seu boilerplate seja verdadeiramente modular no futuro, a principal recomendação é começar a usar Django Signals para a comunicação entre módulos diferentes (ex: E-commerce avisando o CRM e o Financeiro que uma venda ocorreu) e Generic Foreign Keys para relacionamentos que cruzam as fronteiras dos módulos.
+
+
+##################
+Paginação/Scroll Infinito: Não carregue todos os dados de uma vez; traga apenas o que o usuário está vendo.
+Lazy Loading: Carregue imagens e componentes apenas quando eles entrarem na tela do usuário.
+Virtualização de Lista (Windowing): Renderize apenas os itens visíveis na tela, em vez de milhares de elementos ocultos.
+Minificação e Compressão: Reduza o tamanho de arquivos CSS e JS antes de enviá-los ao navegador.
+Code Splitting (Divisão de Código): Divida arquivos JavaScript grandes em partes menores para carregar só o necessário. 
+ByteByteGo
+ByteByteGo
+ +4
