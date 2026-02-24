@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .utils import SanitizedCharField, RichTextField
 from .models import (
     BaseProduct, ProductVariation, Address, BaseCustomUser, Order, 
@@ -6,6 +7,8 @@ from .models import (
     Supplier, InventoryLog, FinancialTransaction
 )
 
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = 'email'
 class ProductSerializer(serializers.ModelSerializer):
     name = SanitizedCharField(max_length=125)
     description = RichTextField(required=False, allow_blank=True)
