@@ -220,7 +220,7 @@ class InventoryLog(models.Model):
         elif self.type == 'ADJUST':
             target.stock = self.quantity 
             pass
-        target.save()
+        target.save() 
     def __str__(self):
         return f"{self.type} - {self.product.name} ({self.quantity})"
     
