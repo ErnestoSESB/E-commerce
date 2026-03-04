@@ -1,4 +1,4 @@
-from rest_framework.test import APITestCase
+﻿from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
 from django.utils import timezone
@@ -115,7 +115,7 @@ class TwoFactorAuthTests(APITestCase):
         data = {'email': 'user2@test.com', 'otp_code': '999999'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('inválido', str(response.data))
+        self.assertIn('invÃ¡lido', str(response.data))
 
     def test_verify_otp_with_expired_code(self):
         profile = self.user_with_2fa.security_profile
@@ -144,7 +144,7 @@ class PasswordResetTests(APITestCase):
         url = reverse('password_reset_request')
         data = {'email': 'nonexistent@test.com'}
         response = self.client.post(url, data)
-        # Deve retornar a mesma mensagem por segurança
+        # Deve retornar a mesma mensagem por seguranÃ§a
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_reset_password_with_valid_token(self):
@@ -167,7 +167,7 @@ class PasswordResetTests(APITestCase):
         data = {'token': 'invalid-token', 'new_password': 'newpassword123'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('inválido', str(response.data))
+        self.assertIn('invÃ¡lido', str(response.data))
 
     def test_reset_password_with_expired_token(self):
         profile = self.user.security_profile
@@ -189,4 +189,82 @@ class ProtectedHelloView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"message": f"Olá, {request.user.username}! Você está autenticado."})
+        return Response({"message": f"OlÃ¡, {request.user.username}! VocÃª estÃ¡ autenticado."})
+
+class ArchitectureAndFixesTests(APITestCase):
+    pass
+
+
+from .models import Order, OrderItem, BaseProduct, CustomerCRM
+from .serializers import CleanModelSerializer, CustomerCRMSerializer
+from decimal import Decimal
+
+class ArchitectureAndDecouplingTests(APITestCase):
+    def setUp(self):
+        # Create a user
+        self.user = BaseCustomUser.objects.create_user(
+            username='crm_test', email='crm@test.com', password='123'
+        )
+        
+        # Create a Product
+        self.product = BaseProduct.objects.create(
+            name='Test Product', price=100.0, stock=50
+        )
+        
+    def test_order_signal_updates_crm_when_payment_status_changes(self):
+        crm_profile, _ = CustomerCRM.objects.get_or_create(user=self.user)
+        self.assertEqual(crm_profile.total_orders_count, 0)
+        self.assertEqual(crm_profile.lifetime_value, Decimal("0.00"))
+        
+        # Create an Order NOT paid
+        order = Order.objects.create(client=self.user, payment_status=False)
+        OrderItem.objects.create(order=order, product=self.product, quantity=2) # total = 200
+        
+        # Save should not trigger update yet because payment_status is False
+        crm_profile.refresh_from_db()
+        self.assertEqual(crm_profile.total_orders_count, 0)
+        
+        # Update order to PAID
+        order.payment_status = True
+        order.save()
+        
+        # Now CRM should be updated
+        crm_profile.refresh_from_db()
+        self.assertEqual(crm_profile.total_orders_count, 1)
+        self.assertEqual(crm_profile.lifetime_value, Decimal("200.00"))
+        
+        # Update order again (e.g. status changed to delivered)
+        order.status = 'delivered'
+        order.save()
+        
+        # Count should remain 1 (no duplicate metrics)
+        crm_profile.refresh_from_db()
+        self.assertEqual(crm_profile.total_orders_count, 1)
+        self.assertEqual(crm_profile.lifetime_value, Decimal("200.00"))
+        
+    def test_clean_model_serializer_dynamic_omission(self):
+        crm, _ = CustomerCRM.objects.get_or_create(user=self.user)
+        crm.internal_notes = ""
+        crm.save()
+        
+        serializer = CustomerCRMSerializer(crm)
+        data = serializer.data
+        
+        # Validation of Dynamic Omissions
+        # Should not have keys for null, "", or 0
+        self.assertNotIn("internal_notes", data, "Empty strings should be omitted")
+        self.assertNotIn("last_purchase_date", data, "Null values should be omitted")
+        self.assertNotIn("total_orders_count", data, "Zero integers should be omitted")
+        self.assertNotIn("lifetime_value", data, "Zero decimals should be omitted")
+        
+        # Now add data and verify it appears
+        crm.internal_notes = "Important customer"
+        crm.total_orders_count = 5
+        crm.save()
+        
+        data_populated = CustomerCRMSerializer(crm).data
+        self.assertIn("internal_notes", data_populated)
+        self.assertEqual(data_populated["internal_notes"], "Important customer")
+        self.assertIn("total_orders_count", data_populated)
+        self.assertEqual(data_populated["total_orders_count"], 5)
+

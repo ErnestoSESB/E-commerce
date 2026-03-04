@@ -10,30 +10,19 @@ GERAR DASHBOARDS PARA O CRM E ERP - fazer ao menos 3 variações - colunas, pizz
 O fluxo do Django REST Framework (DRF) funciona assim:
 PostgreSQL <-> Model <-> Serializer <-> ViewSet <-> Router <-> Cliente (Front-end)
 
+Serviço de envio de email - OK
+
 Falta Técnica Mínima (Para Funcionar e não quebrar em Produção):
 
 PROBLEMAS
 
-Onde: settings.py e rotas de Login.
-Problema: Atualmente o Django usa Session Auth ou Basic Auth. Apps modernos (React/Mobile) precisam de Tokens JWT (access e refresh).
-Solução: Instalar djangorestframework_simplejwt.
-Confirmação/Recuperação de Senha:
 
-Onde: Rotas de User.
-Problema: Se o usuário esquecer a senha, ele perde a conta pra sempre? Ou manda email pro suporte?
-Solução: Implementar endpoints de reset_password enviando link por email (e configurar SMTP).
-Admin Panel Customizado:
 
-Onde: admin.py.
-Problema: O Django Admin padrão é funcional, mas feio/cru para um gerente de loja operar ("Qual botão eu aperto?").
-Solução: Personalizar list_display, search_fields e inlines (Pedido com seus Itens dentro) para facilitar a vida da operação.
-Falta de Segurança Extra (Opcional, mas Recomendado "Paranóico"):
-Rate Limiting (Limitação de Taxa):
+Camada de Segurança Nível 2 / Logs de Auditoria Global:
+Onde: Toda a API e Models.
+Problema: O sistema atual não rastreia "quem alterou o quê" através da API (ex: se um funcionário mudar o preço de um produto ou cancelar um pedido sem autorização, ninguém fica sabendo o valor antigo nem o autor na mesma hora).
+Solução: Instalar e configurar `django-simple-history` para registrar versões de cada alteração em tabelas críticas (Orders, Products) automaticamente.
 
-Onde: settings.py (DRF Throttling).
-Problema: Alguém pode fazer POST /login/ 1000 vezes por segundo (Brute Force)? Ou consultar a lista de produtos infinitamente (Scraping)?
-Solução: Limitar: AnonRateThrottle (100/dia), UserRateThrottle (1000/dia).
-Sanitização de Input (HTML):
 
 ###
 

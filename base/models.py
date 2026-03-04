@@ -32,8 +32,6 @@ class BaseProduct(models.Model):
              self.slug = f"{base_slug}-{str(self.id)[:8]}" if self.id else base_slug
         super().save(*args, **kwargs)
  
-#caso haja variação do produto - usar aqui
-
 class ProductVariation(models.Model):
     product = models.ForeignKey(BaseProduct, on_delete=models.CASCADE, related_name='variations')
     name = models.CharField(max_length=50) 
@@ -133,7 +131,25 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICE, default='pending')
     payment_status = models.BooleanField(default=False)
 
-#Define a quantidade de itens de cada produto
+    def save(self, *args, **kwargs):
+        is_new_order = self._state.adding
+        was_paid = False
+        if not is_new_order:
+            was_paid = Order.objects.get(pk=self.pk).payment_status
+            
+        super().save(*args, **kwargs)
+        try:
+            from base.signals import order_completed_signal
+            if self.payment_status and not was_paid:
+                order_total = self.get_total
+                order_completed_signal.send(
+                    sender=self.__class__,
+                    user_id=self.client.id if self.client else None,
+                    order_total=order_total,
+                    order_date=self.created_at
+                )
+        except Exception as e:
+             pass
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
@@ -172,14 +188,6 @@ class CustomerCRM(models.Model):
     total_orders_count = models.PositiveIntegerField(default=0)
     last_purchase_date = models.DateTimeField(null=True, blank=True)
     
-    def update_metrics(self):
-        orders = self.user.order_set.filter(payment_status=True)
-        self.total_orders_count = orders.count()
-        self.lifetime_value = sum(order.get_total for order in orders)
-        if orders.exists():
-            self.last_purchase_date = orders.latest('created_at').created_at
-        self.save()
-
     def __str__(self):
         return f"CRM: {self.user.email}"
 

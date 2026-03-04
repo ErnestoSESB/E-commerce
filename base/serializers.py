@@ -1,4 +1,15 @@
 from rest_framework import serializers
+
+class CleanModelSerializer(serializers.ModelSerializer):
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        clean_representation = {}
+        for key, value in representation.items():
+            if value is not None and value != "" and value != 0 and value != [] and value != "0.00":
+                clean_representation[key] = value
+                
+        return clean_representation
+
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .utils import SanitizedCharField, RichTextField
 from .models import (
@@ -9,7 +20,7 @@ from .models import (
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     username_field = 'email'
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(CleanModelSerializer):
     name = SanitizedCharField(max_length=125)
     description = RichTextField(required=False, allow_blank=True)
     class Meta:
@@ -17,7 +28,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'price', 'description', 'slug', 'image']
 
 
-class ProductDetailSerializer(serializers.ModelSerializer):
+class ProductDetailSerializer(CleanModelSerializer):
     name = SanitizedCharField(max_length=125)
     description = RichTextField(required=False, allow_blank=True)
     class Meta:
@@ -25,7 +36,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class SimpleProductSerializer(serializers.ModelSerializer):
+class SimpleProductSerializer(CleanModelSerializer):
     name = SanitizedCharField(max_length=125)
     class Meta:
         model = BaseProduct
@@ -36,7 +47,7 @@ class SimpleProductSerializer(serializers.ModelSerializer):
         validated_data['slug'] = validated_data['name'].lower().replace(" ", "-") 
         return super().create(validated_data)
 
-class VariationProductSerializer(serializers.ModelSerializer):
+class VariationProductSerializer(CleanModelSerializer):
     name = SanitizedCharField()
     value = SanitizedCharField()
     class Meta:
@@ -44,7 +55,7 @@ class VariationProductSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 # Users
-class AddressSerializer(serializers.ModelSerializer):
+class AddressSerializer(CleanModelSerializer):
     street = SanitizedCharField()
     city = SanitizedCharField()
     state = SanitizedCharField()
@@ -54,7 +65,7 @@ class AddressSerializer(serializers.ModelSerializer):
         model = Address
         fields = '__all__'
 
-class CustomUserSerializer(serializers.ModelSerializer):
+class CustomUserSerializer(CleanModelSerializer):
     address = AddressSerializer(read_only=True) 
     name = SanitizedCharField()
     
@@ -77,13 +88,13 @@ class CustomUserSerializer(serializers.ModelSerializer):
         return instance
 
 # Orders
-class OrderItemSerializer(serializers.ModelSerializer):
+class OrderItemSerializer(CleanModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     class Meta:
         model = OrderItem
         fields = ['id', 'product', 'product_name', 'quantity']
 
-class OrderSerializer(serializers.ModelSerializer):
+class OrderSerializer(CleanModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     total = serializers.ReadOnlyField(source='get_total')
     class Meta:
@@ -91,7 +102,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = ['id', 'client', 'status', 'payment_status', 'created_at', 'updated_at', 'items', 'total']
 
 # Cart 
-class CartItemSerializer(serializers.ModelSerializer):
+class CartItemSerializer(CleanModelSerializer):
     id = serializers.UUIDField(read_only=True)
     product_name = serializers.ReadOnlyField(source='product.name')
     product_price = serializers.ReadOnlyField(source='product.price')
@@ -115,7 +126,7 @@ class CartItemSerializer(serializers.ModelSerializer):
                  raise serializers.ValidationError(f"Estoque insuficiente. Restam apenas {product.stock} unidades.")
         return data
 
-class CartSerializer(serializers.ModelSerializer):
+class CartSerializer(CleanModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
     total = serializers.ReadOnlyField() 
     user = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -124,7 +135,7 @@ class CartSerializer(serializers.ModelSerializer):
         fields = ['id', 'created_at', 'items', 'total', 'user']
 
 # CRM
-class CRMTagSerializer(serializers.ModelSerializer):
+class CRMTagSerializer(CleanModelSerializer):
     name = SanitizedCharField()
     color = SanitizedCharField()
 
@@ -132,7 +143,7 @@ class CRMTagSerializer(serializers.ModelSerializer):
         model = CRMTag
         fields = '__all__'
 
-class CRMInteractionSerializer(serializers.ModelSerializer):
+class CRMInteractionSerializer(CleanModelSerializer):
     agent_name = serializers.ReadOnlyField(source='agent.username')
     subject = SanitizedCharField()
     description = SanitizedCharField()
@@ -141,7 +152,7 @@ class CRMInteractionSerializer(serializers.ModelSerializer):
         model = CRMInteraction
         fields = '__all__'
 
-class CustomerCRMSerializer(serializers.ModelSerializer):
+class CustomerCRMSerializer(CleanModelSerializer):
     user_email = serializers.ReadOnlyField(source='user.email')
     user_name = serializers.ReadOnlyField(source='user.first_name')
     internal_notes = SanitizedCharField(required=False, allow_blank=True)
@@ -153,7 +164,7 @@ class CustomerCRMSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 # ERP
-class SupplierSerializer(serializers.ModelSerializer):
+class SupplierSerializer(CleanModelSerializer):
     name = SanitizedCharField()
     contact_name = SanitizedCharField(allow_blank=True, required=False)
     notes = SanitizedCharField(allow_blank=True, required=False)
@@ -161,7 +172,7 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = '__all__'
 
-class InventoryLogSerializer(serializers.ModelSerializer):
+class InventoryLogSerializer(CleanModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
     user_name = serializers.ReadOnlyField(source='user.username')
     reason = SanitizedCharField()
@@ -169,7 +180,7 @@ class InventoryLogSerializer(serializers.ModelSerializer):
         model = InventoryLog
         fields = '__all__'
 
-class FinancialTransactionSerializer(serializers.ModelSerializer):
+class FinancialTransactionSerializer(CleanModelSerializer):
     description = SanitizedCharField()
     category = SanitizedCharField(allow_blank=True, required=False)   
     class Meta:
