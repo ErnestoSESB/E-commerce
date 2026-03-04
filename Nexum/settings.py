@@ -75,10 +75,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Nexum.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -134,3 +130,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',]
 }
+
+# Email settings
+
+EMAIL_SERVICE = "resend"
+
+RESEND_API_KEY = "SUA_CHAVE_AQUI"

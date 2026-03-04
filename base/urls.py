@@ -7,6 +7,7 @@ from .views import (
     CartViewSet, CartItemViewSet,
     CRMTagViewSet, CustomerCRMViewSet, CRMInteractionViewSet,
     SupplierViewSet, InventoryLogViewSet, FinancialTransactionViewSet,
+    RequestPasswordResetView, ResetPasswordView
 )
 from .tests import ( ProtectedHelloView)
 router = DefaultRouter()
@@ -33,7 +34,9 @@ router.register(r'inventory-logs', InventoryLogViewSet, basename='inventory-log'
 router.register(r'financial-transactions', FinancialTransactionViewSet, basename='financial-transaction')
 
 urlpatterns = [
-    # Inclui as rotas da api como: /api/products/
+    # Inclui as rotas da api como: /api/products/  # inclui todas as rotas dos ViewSets
     path('', include(router.urls)),
-    path('hello/', ProtectedHelloView.as_view(), name='protected-hello'),
+    path('hello/', ProtectedHelloView.as_view(), name='protected-hello'), # endpoint protegido para teste de autenticação
+    path('auth/request-password-reset/', RequestPasswordResetView.as_view(), name='request-password-reset'), # envia email para recuperação de senha
+    path('auth/reset-password/', ResetPasswordView.as_view(), name='reset-password'), # redefine a senha usando token recebido
 ]
